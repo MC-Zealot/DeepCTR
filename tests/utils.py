@@ -1,75 +1,84 @@
 from __future__ import absolute_import, division, print_function
 
 import inspect
+import os
 import sys
 
 import numpy as np
-import  tensorflow as tf
+import tensorflow as tf
 from numpy.testing import assert_allclose
 from tensorflow.python.keras import backend as K
 from tensorflow.python.keras.layers import Input, Masking
 from tensorflow.python.keras.models import Model, load_model, save_model
 
-from deepctr.inputs import SparseFeat, DenseFeat,VarLenSparseFeat
-from deepctr.layers import  custom_objects
+from deepctr.feature_column import SparseFeat, VarLenSparseFeat, DenseFeat, DEFAULT_GROUP_NAME
+from deepctr.layers import custom_objects
 
-SAMPLE_SIZE=16
+SAMPLE_SIZE = 8
+VOCABULARY_SIZE = 4
+Estimator_TEST_TF1 = True
 
 def gen_sequence(dim, max_len, sample_size):
-    return np.array([np.random.randint(0, dim, max_len) for _ in range(sample_size)]), np.random.randint(1, max_len + 1, sample_size)
+    return np.array([np.random.randint(0, dim, max_len) for _ in range(sample_size)]), np.random.randint(1, max_len + 1,
+                                                                                                         sample_size)
 
 
-def get_test_data(sample_size=1000, sparse_feature_num=1, dense_feature_num=1, sequence_feature=('sum', 'mean', 'max'),
-                  classification=True, include_length=False, hash_flag=False,prefix=''):
-
-
+def get_test_data(sample_size=1000, embedding_size=4, sparse_feature_num=1, dense_feature_num=1,
+                  sequence_feature=['sum', 'mean', 'max', 'weight'], classification=True, include_length=False,
+                  hash_flag=False, prefix='', use_group=False):
     feature_columns = []
+    model_input = {}
+
+    if 'weight' in sequence_feature:
+        feature_columns.append(
+            VarLenSparseFeat(SparseFeat(prefix + "weighted_seq", vocabulary_size=2, embedding_dim=embedding_size),
+                             maxlen=3, length_name=prefix + "weighted_seq" + "_seq_length",
+                             weight_name=prefix + "weight"))
+        s_input, s_len_input = gen_sequence(
+            2, 3, sample_size)
+
+        model_input[prefix + "weighted_seq"] = s_input
+        model_input[prefix + 'weight'] = np.random.randn(sample_size, 3, 1)
+        model_input[prefix + "weighted_seq" + "_seq_length"] = s_len_input
+        sequence_feature.pop(sequence_feature.index('weight'))
 
     for i in range(sparse_feature_num):
+        if use_group:
+            group_name = str(i%3)
+        else:
+            group_name = DEFAULT_GROUP_NAME
         dim = np.random.randint(1, 10)
-        feature_columns.append(SparseFeat(prefix+'sparse_feature_'+str(i), dim,hash_flag,tf.int32))
+        feature_columns.append(
+            SparseFeat(prefix + 'sparse_feature_' + str(i), dim, embedding_size, use_hash=hash_flag, dtype=tf.int32,group_name=group_name))
+
     for i in range(dense_feature_num):
-        feature_columns.append(DenseFeat(prefix+'dense_feature_'+str(i), 1,tf.float32))
+        feature_columns.append(DenseFeat(prefix + 'dense_feature_' + str(i), 1, dtype=tf.float32))
     for i, mode in enumerate(sequence_feature):
         dim = np.random.randint(1, 10)
         maxlen = np.random.randint(1, 10)
         feature_columns.append(
-            VarLenSparseFeat(prefix+'sequence_' + str(i), dim, maxlen, mode))
+            VarLenSparseFeat(SparseFeat(prefix + 'sequence_' + mode, vocabulary_size=dim, embedding_dim=embedding_size),
+                             maxlen=maxlen, combiner=mode))
 
-
-
-    model_input = []
-    sequence_input = []
-    sequence_len_input = []
     for fc in feature_columns:
-        if isinstance(fc,SparseFeat):
-            model_input.append(np.random.randint(0, fc.dimension, sample_size))
-        elif isinstance(fc,DenseFeat):
-            model_input.append(np.random.random(sample_size))
+        if isinstance(fc, SparseFeat):
+            model_input[fc.name] = np.random.randint(0, fc.vocabulary_size, sample_size)
+        elif isinstance(fc, DenseFeat):
+            model_input[fc.name] = np.random.random(sample_size)
         else:
             s_input, s_len_input = gen_sequence(
-                fc.dimension, fc.maxlen, sample_size)
-            sequence_input.append(s_input)
-            sequence_len_input.append(s_len_input)
-
-
+                fc.vocabulary_size, fc.maxlen, sample_size)
+            model_input[fc.name] = s_input
+            if include_length:
+                fc.length_name = prefix + "sequence_" + str(i) + '_seq_length'
+                model_input[prefix + "sequence_" + str(i) + '_seq_length'] = s_len_input
 
     if classification:
         y = np.random.randint(0, 2, sample_size)
     else:
         y = np.random.random(sample_size)
 
-    x = model_input+ sequence_input
-    if include_length:
-        for i, mode in enumerate(sequence_feature):
-            dim = np.random.randint(1, 10)
-            maxlen = np.random.randint(1, 10)
-            feature_columns.append(
-                SparseFeat(prefix+'sequence_' + str(i)+'_seq_length', 1,embedding=False))
-
-        x += sequence_len_input
-
-    return x, y, feature_columns
+    return model_input, y, feature_columns
 
 
 def layer_test(layer_cls, kwargs={}, input_shape=None, input_dtype=None,
@@ -85,7 +94,6 @@ def layer_test(layer_cls, kwargs={}, input_shape=None, input_dtype=None,
             raise AssertionError()
 
         if not input_dtype:
-
             input_dtype = K.floatx()
 
         input_data_shape = list(input_shape)
@@ -93,7 +101,6 @@ def layer_test(layer_cls, kwargs={}, input_shape=None, input_dtype=None,
         for i, e in enumerate(input_data_shape):
 
             if e is None:
-
                 input_data_shape[i] = np.random.randint(1, 4)
         input_mask = []
         if all(isinstance(e, tuple) for e in input_data_shape):
@@ -104,7 +111,7 @@ def layer_test(layer_cls, kwargs={}, input_shape=None, input_dtype=None,
                     (10 * np.random.random(e)).astype(input_dtype))
                 if supports_masking:
                     a = np.full(e[:2], False)
-                    a[:, :e[1]//2] = True
+                    a[:, :e[1] // 2] = True
                     input_mask.append(a)
 
         else:
@@ -114,7 +121,7 @@ def layer_test(layer_cls, kwargs={}, input_shape=None, input_dtype=None,
             input_data = input_data.astype(input_dtype)
             if supports_masking:
                 a = np.full(input_data_shape[:2], False)
-                a[:, :input_data_shape[1]//2] = True
+                a[:, :input_data_shape[1] // 2] = True
 
                 print(a)
                 print(a.shape)
@@ -123,15 +130,12 @@ def layer_test(layer_cls, kwargs={}, input_shape=None, input_dtype=None,
     else:
 
         if input_shape is None:
-
             input_shape = input_data.shape
 
         if input_dtype is None:
-
             input_dtype = input_data.dtype
 
     if expected_output_dtype is None:
-
         expected_output_dtype = input_dtype
 
     # instantiation
@@ -204,10 +208,9 @@ def layer_test(layer_cls, kwargs={}, input_shape=None, input_dtype=None,
         if expected_dim is not None:
 
             if not (expected_dim == actual_dim):
-                raise AssertionError("expected_shape",expected_output_shape,"actual_shape",actual_output_shape)
+                raise AssertionError("expected_shape", expected_output_shape, "actual_shape", actual_output_shape)
 
     if expected_output is not None:
-
         assert_allclose(actual_output, expected_output, rtol=1e-3)
 
     # test serialization, weight setting at model level
@@ -217,7 +220,6 @@ def layer_test(layer_cls, kwargs={}, input_shape=None, input_dtype=None,
     recovered_model = model.__class__.from_config(model_config)
 
     if model.weights:
-
         weights = model.get_weights()
 
         recovered_model.set_weights(weights)
@@ -231,7 +233,6 @@ def layer_test(layer_cls, kwargs={}, input_shape=None, input_dtype=None,
     # different behavior at training and testing time).
 
     if has_arg(layer.call, 'training'):
-
         model.compile('rmsprop', 'mse')
 
         model.train_on_batch(input_data, actual_output)
@@ -289,7 +290,6 @@ def has_arg(fn, name, accept_all=False):
         arg_spec = inspect.getargspec(fn)
 
         if accept_all and arg_spec.keywords is not None:
-
             return True
 
         return (name in arg_spec.args)
@@ -299,7 +299,6 @@ def has_arg(fn, name, accept_all=False):
         arg_spec = inspect.getfullargspec(fn)
 
         if accept_all and arg_spec.varkw is not None:
-
             return True
 
         return (name in arg_spec.args or
@@ -319,7 +318,6 @@ def has_arg(fn, name, accept_all=False):
                 for param in signature.parameters.values():
 
                     if param.kind == inspect.Parameter.VAR_KEYWORD:
-
                         return True
 
             return False
@@ -329,7 +327,7 @@ def has_arg(fn, name, accept_all=False):
                                    inspect.Parameter.KEYWORD_ONLY))
 
 
-def check_model(model, model_name, x, y,check_model_io=True):
+def check_model(model, model_name, x, y, check_model_io=True):
     """
     compile model,train and evaluate it,then save/load weight and model file.
     :param model:
@@ -344,13 +342,48 @@ def check_model(model, model_name, x, y,check_model_io=True):
                   metrics=['binary_crossentropy'])
     model.fit(x, y, batch_size=100, epochs=1, validation_split=0.5)
 
-    print(model_name+" test train valid pass!")
+    print(model_name + " test train valid pass!")
     model.save_weights(model_name + '_weights.h5')
     model.load_weights(model_name + '_weights.h5')
-    print(model_name+" test save load weight pass!")
+    os.remove(model_name + '_weights.h5')
+    print(model_name + " test save load weight pass!")
     if check_model_io:
         save_model(model, model_name + '.h5')
         model = load_model(model_name + '.h5', custom_objects)
+        os.remove(model_name + '.h5')
         print(model_name + " test save load model pass!")
 
     print(model_name + " test pass!")
+
+def get_test_data_estimator(sample_size=1000, embedding_size=4, sparse_feature_num=1, dense_feature_num=1, classification=True):
+
+    x = {}
+    dnn_feature_columns = []
+    linear_feature_columns = []
+    voc_size = 4
+    for i in range(sparse_feature_num):
+        name = 's_'+str(i)
+        x[name] = np.random.randint(0, voc_size, sample_size)
+        dnn_feature_columns.append(tf.feature_column.embedding_column(tf.feature_column.categorical_column_with_identity(name,voc_size),embedding_size))
+        linear_feature_columns.append(tf.feature_column.categorical_column_with_identity(name, voc_size))
+
+    for i in range(dense_feature_num):
+        name = 'd_'+str(i)
+        x[name] = np.random.random(sample_size)
+        dnn_feature_columns.append(tf.feature_column.numeric_column(name))
+        linear_feature_columns.append(tf.feature_column.numeric_column(name))
+
+    if classification:
+        y = np.random.randint(0, 2, sample_size)
+    else:
+        y = np.random.random(sample_size)
+    if tf.__version__ >= "2.0.0":
+        input_fn = tf.compat.v1.estimator.inputs.numpy_input_fn(x, y, shuffle=False)
+    else:
+        input_fn = tf.estimator.inputs.numpy_input_fn(x, y, shuffle=False)
+
+    return linear_feature_columns,dnn_feature_columns,input_fn
+
+def check_estimator(model,input_fn):
+    model.train(input_fn)
+    model.evaluate(input_fn)

@@ -7,14 +7,15 @@ Reference:
     [1] Zhou G, Mou N, Fan Y, et al. Deep Interest Evolution Network for Click-Through Rate Prediction[J]. arXiv preprint arXiv:1809.03672, 2018. (https://arxiv.org/pdf/1809.03672.pdf)
 """
 
-
 import tensorflow as tf
 from tensorflow.python.keras.layers import (Concatenate, Dense, Input, Permute, multiply)
 
-from ..inputs import build_input_features, get_varlen_pooling_list,create_embedding_matrix,embedding_lookup,varlen_embedding_lookup,SparseFeat,DenseFeat,VarLenSparseFeat,get_dense_input,combined_dnn_input
+from ..feature_column import SparseFeat, VarLenSparseFeat, DenseFeat, build_input_features
+from ..inputs import get_varlen_pooling_list, create_embedding_matrix, embedding_lookup, varlen_embedding_lookup, \
+    get_dense_input
 from ..layers.core import DNN, PredictionLayer
 from ..layers.sequence import AttentionSequencePoolingLayer, DynamicGRU
-from ..layers.utils import concat_fun,reduce_mean
+from ..layers.utils import concat_func, reduce_mean, combined_dnn_input
 
 
 def auxiliary_loss(h_states, click_seq, noclick_seq, mask, stag=None):
@@ -54,7 +55,6 @@ def auxiliary_loss(h_states, click_seq, noclick_seq, mask, stag=None):
                             tf.reshape(tf.compat.v1.log(1.0 - noclick_prop_),
                                        [-1, tf.shape(noclick_seq)[1]]) * mask
 
-
     loss_ = reduce_mean(click_loss_ + noclick_loss_)
 
     return loss_
@@ -68,21 +68,20 @@ def auxiliary_net(in_, stag='auxiliary_net'):
         bn1 = tf.compat.v1.layers.batch_normalization(
             inputs=in_, name='bn1' + stag, reuse=tf.compat.v1.AUTO_REUSE)
 
-    try:#todo
+    try:  # todo
         dnn1 = tf.layers.dense(bn1, 100, activation=None,
                                name='f1' + stag, reuse=tf.AUTO_REUSE)
     except:
         dnn1 = tf.compat.v1.layers.dense(bn1, 100, activation=None,
-                               name='f1' + stag, reuse=tf.compat.v1.AUTO_REUSE)
-
+                                         name='f1' + stag, reuse=tf.compat.v1.AUTO_REUSE)
 
     dnn1 = tf.nn.sigmoid(dnn1)
     try:
         dnn2 = tf.layers.dense(dnn1, 50, activation=None,
-                           name='f2' + stag, reuse=tf.AUTO_REUSE)
+                               name='f2' + stag, reuse=tf.AUTO_REUSE)
     except:
         dnn2 = tf.compat.v1.layers.dense(dnn1, 50, activation=None,
-                           name='f2' + stag, reuse=tf.compat.v1.AUTO_REUSE)
+                                         name='f2' + stag, reuse=tf.compat.v1.AUTO_REUSE)
 
     dnn2 = tf.nn.sigmoid(dnn2)
     try:
@@ -90,7 +89,7 @@ def auxiliary_net(in_, stag='auxiliary_net'):
                                name='f3' + stag, reuse=tf.AUTO_REUSE)
     except:
         dnn3 = tf.compat.v1.layers.dense(dnn2, 1, activation=None,
-                               name='f3' + stag, reuse=tf.compat.v1.AUTO_REUSE)
+                                         name='f3' + stag, reuse=tf.compat.v1.AUTO_REUSE)
 
     y_hat = tf.nn.sigmoid(dnn3)
 
@@ -98,13 +97,13 @@ def auxiliary_net(in_, stag='auxiliary_net'):
 
 
 def interest_evolution(concat_behavior, deep_input_item, user_behavior_length, gru_type="GRU", use_neg=False,
-                       neg_concat_behavior=None, embedding_size=8, att_hidden_size=(64, 16), att_activation='sigmoid',
+                       neg_concat_behavior=None, att_hidden_size=(64, 16), att_activation='sigmoid',
                        att_weight_normalization=False, ):
     if gru_type not in ["GRU", "AIGRU", "AGRU", "AUGRU"]:
         raise ValueError("gru_type error ")
     aux_loss_1 = None
-
-    rnn_outputs = DynamicGRU(embedding_size * 2, return_sequence=True,
+    embedding_size = None
+    rnn_outputs = DynamicGRU(embedding_size, return_sequence=True,
                              name="gru1")([concat_behavior, user_behavior_length])
 
     if gru_type == "AUGRU" and use_neg:
@@ -115,7 +114,7 @@ def interest_evolution(concat_behavior, deep_input_item, user_behavior_length, g
                                     tf.subtract(user_behavior_length, 1), stag="gru")  # [:, 1:]
 
     if gru_type == "GRU":
-        rnn_outputs2 = DynamicGRU(embedding_size * 2, return_sequence=True,
+        rnn_outputs2 = DynamicGRU(embedding_size, return_sequence=True,
                                   name="gru2")([rnn_outputs, user_behavior_length])
         # attention_score = AttentionSequencePoolingLayer(hidden_size=att_hidden_size, activation=att_activation, weight_normalization=att_weight_normalization, return_score=True)([
         #     deep_input_item, rnn_outputs2, user_behavior_length])
@@ -134,26 +133,24 @@ def interest_evolution(concat_behavior, deep_input_item, user_behavior_length, g
 
         if gru_type == "AIGRU":
             hist = multiply([rnn_outputs, Permute([2, 1])(scores)])
-            final_state2 = DynamicGRU(embedding_size * 2, gru_type="GRU", return_sequence=False, name='gru2')(
+            final_state2 = DynamicGRU(embedding_size, gru_type="GRU", return_sequence=False, name='gru2')(
                 [hist, user_behavior_length])
         else:  # AGRU AUGRU
-            final_state2 = DynamicGRU(embedding_size * 2, gru_type=gru_type, return_sequence=False,
+            final_state2 = DynamicGRU(embedding_size, gru_type=gru_type, return_sequence=False,
                                       name='gru2')([rnn_outputs, user_behavior_length, Permute([2, 1])(scores)])
         hist = final_state2
     return hist, aux_loss_1
 
 
-def DIEN(dnn_feature_columns, history_feature_list, embedding_size=8, hist_len_max=16,
+def DIEN(dnn_feature_columns, history_feature_list,
          gru_type="GRU", use_negsampling=False, alpha=1.0, use_bn=False, dnn_hidden_units=(200, 80),
          dnn_activation='relu',
          att_hidden_units=(64, 16), att_activation="dice", att_weight_normalization=True,
-         l2_reg_dnn=0, l2_reg_embedding=1e-6, dnn_dropout=0, init_std=0.0001, seed=1024, task='binary'):
+         l2_reg_dnn=0, l2_reg_embedding=1e-6, dnn_dropout=0, seed=1024, task='binary'):
     """Instantiates the Deep Interest Evolution Network architecture.
 
     :param dnn_feature_columns: An iterable containing all the features used by deep part of the model.
     :param history_feature_list: list,to indicate  sequence sparse field
-    :param embedding_size: positive integer,sparse feature embedding_size.
-    :param hist_len_max: positive int, to indicate the max length of seq input
     :param gru_type: str,can be GRU AIGRU AUGRU AGRU
     :param use_negsampling: bool, whether or not use negtive sampling
     :param alpha: float ,weight of auxiliary_loss
@@ -172,25 +169,6 @@ def DIEN(dnn_feature_columns, history_feature_list, embedding_size=8, hist_len_m
     :return: A Keras model instance.
 
     """
-    # check_feature_config_dict(feature_columns)
-    #
-    # sparse_input, dense_input, user_behavior_input, user_behavior_length = get_input(
-    #     feature_columns, seq_feature_list, hist_len_max)
-    # sparse_embedding_dict = {feat.name: Embedding(feat.dimension, embedding_size,
-    #                                               embeddings_initializer=RandomNormal(
-    #                                                   mean=0.0, stddev=init_std, seed=seed),
-    #                                               embeddings_regularizer=l2(
-    #                                                   l2_reg_embedding),
-    #                                               name='sparse_emb_' + str(i) + '-' + feat.name) for i, feat in
-    #                          enumerate(feature_columns["sparse"])}
-    #
-    # query_emb_list = get_embedding_vec_list(sparse_embedding_dict, sparse_input, feature_columns["sparse"], return_feat_list=seq_feature_list)
-    # keys_emb_list = get_embedding_vec_list(sparse_embedding_dict, user_behavior_input, feature_columns['sparse'], return_feat_list=seq_feature_list)
-    # deep_input_emb_list = get_embedding_vec_list(sparse_embedding_dict, sparse_input, feature_columns['sparse'])
-    #
-    # query_emb = concat_fun(query_emb_list)
-    # keys_emb = concat_fun(keys_emb_list)
-    # deep_input_emb = concat_fun(deep_input_emb_list)
 
     features = build_input_features(dnn_feature_columns)
 
@@ -219,44 +197,39 @@ def DIEN(dnn_feature_columns, history_feature_list, embedding_size=8, hist_len_m
 
     inputs_list = list(features.values())
 
-    embedding_dict = create_embedding_matrix(dnn_feature_columns, l2_reg_embedding, init_std, seed, embedding_size,
-                                             prefix="",seq_mask_zero=False)
+    embedding_dict = create_embedding_matrix(dnn_feature_columns, l2_reg_embedding, seed, prefix="",
+                                             seq_mask_zero=False)
 
-    query_emb_list = embedding_lookup(embedding_dict, features, sparse_feature_columns, return_feat_list=history_feature_list,
-                                      )  # query是单独的
+    query_emb_list = embedding_lookup(embedding_dict, features, sparse_feature_columns,
+                                      return_feat_list=history_feature_list, to_list=True)
 
-    keys_emb_list = embedding_lookup(embedding_dict, features, history_feature_columns,return_feat_list=history_fc_names)
+    keys_emb_list = embedding_lookup(embedding_dict, features, history_feature_columns,
+                                     return_feat_list=history_fc_names, to_list=True)
     dnn_input_emb_list = embedding_lookup(embedding_dict, features, sparse_feature_columns,
-                                          mask_feat_list=history_feature_list)
+                                          mask_feat_list=history_feature_list, to_list=True)
     dense_value_list = get_dense_input(features, dense_feature_columns)
 
     sequence_embed_dict = varlen_embedding_lookup(embedding_dict, features, sparse_varlen_feature_columns)
-    sequence_embed_list = get_varlen_pooling_list(sequence_embed_dict, features, sparse_varlen_feature_columns)
+    sequence_embed_list = get_varlen_pooling_list(sequence_embed_dict, features, sparse_varlen_feature_columns,
+                                                  to_list=True)
     dnn_input_emb_list += sequence_embed_list
 
-
-    keys_emb = concat_fun(keys_emb_list)
-    deep_input_emb = concat_fun(dnn_input_emb_list)
-    query_emb = concat_fun(query_emb_list)
-
-
+    keys_emb = concat_func(keys_emb_list)
+    deep_input_emb = concat_func(dnn_input_emb_list)
+    query_emb = concat_func(query_emb_list)
 
     if use_negsampling:
-        #neg_user_behavior_input = OrderedDict()
-        #for i, feat in enumerate(history_feature_list):
-        #    neg_user_behavior_input[feat] = Input(shape=(hist_len_max,), name='neg_seq_' + str(i) + '-' + feat)
 
-        neg_uiseq_embed_list = embedding_lookup(embedding_dict, features, neg_history_feature_columns, neg_history_fc_names,)
-            #get_embedding_vec_list(sparse_embedding_dict, neg_user_behavior_input, feature_columns["sparse"], history_feature_list, )
-           # [sparse_embedding_dict[feat](
-           # neg_user_behavior_input[feat]) for feat in seq_feature_list]
-        neg_concat_behavior = concat_fun(neg_uiseq_embed_list)
+        neg_uiseq_embed_list = embedding_lookup(embedding_dict, features, neg_history_feature_columns,
+                                                neg_history_fc_names, to_list=True)
+
+        neg_concat_behavior = concat_func(neg_uiseq_embed_list)
 
     else:
         neg_concat_behavior = None
     hist, aux_loss_1 = interest_evolution(keys_emb, query_emb, user_behavior_length, gru_type=gru_type,
                                           use_neg=use_negsampling, neg_concat_behavior=neg_concat_behavior,
-                                          embedding_size=embedding_size, att_hidden_size=att_hidden_units,
+                                          att_hidden_size=att_hidden_units,
                                           att_activation=att_activation,
                                           att_weight_normalization=att_weight_normalization, )
 
@@ -270,11 +243,11 @@ def DIEN(dnn_feature_columns, history_feature_list, embedding_size=8, hist_len_m
     final_logit = Dense(1, use_bias=False)(output)
     output = PredictionLayer(task)(final_logit)
 
-    #model_input_list = get_inputs_list(
+    # model_input_list = get_inputs_list(
     #    [sparse_input, dense_input, user_behavior_input])
     model_input_list = inputs_list
 
-    #if use_negsampling:
+    # if use_negsampling:
     #    model_input_list += list(neg_user_behavior_input.values())
 
     model_input_list += [user_behavior_length]

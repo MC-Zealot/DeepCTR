@@ -6,6 +6,7 @@ Author:
 
 """
 import tensorflow as tf
+from tensorflow.python.keras.layers import Flatten
 
 
 class NoMask(tf.keras.layers.Layer):
@@ -65,53 +66,71 @@ class Hash(tf.keras.layers.Layer):
 
 class Linear(tf.keras.layers.Layer):
 
-    def __init__(self, l2_reg=0.0, mode=0, **kwargs):
+    def __init__(self, l2_reg=0.0, mode=0, use_bias=False, **kwargs):
 
         self.l2_reg = l2_reg
         # self.l2_reg = tf.contrib.layers.l2_regularizer(float(l2_reg_linear))
+        if mode not in [0, 1, 2]:
+            raise ValueError("mode must be 0,1 or 2")
         self.mode = mode
+        self.use_bias = use_bias
         super(Linear, self).__init__(**kwargs)
 
     def build(self, input_shape):
-
-        self.bias = self.add_weight(name='linear_bias',
-                                    shape=(1,),
-                                    initializer=tf.keras.initializers.Zeros(),
-                                    trainable=True)
-
-        self.dense = tf.keras.layers.Dense(units=1, activation=None, use_bias=False,
-                                           kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg))
+        if self.use_bias:
+            self.bias = self.add_weight(name='linear_bias',
+                                        shape=(1,),
+                                        initializer=tf.keras.initializers.Zeros(),
+                                        trainable=True)
+        if self.mode == 1:
+            self.kernel = self.add_weight(
+                'linear_kernel',
+                shape=[int(input_shape[-1]), 1],
+                initializer=tf.keras.initializers.glorot_normal(),
+                regularizer=tf.keras.regularizers.l2(self.l2_reg),
+                trainable=True)
+        elif self.mode == 2 :
+            self.kernel = self.add_weight(
+                'linear_kernel',
+                shape=[int(input_shape[1][-1]), 1],
+                initializer=tf.keras.initializers.glorot_normal(),
+                regularizer=tf.keras.regularizers.l2(self.l2_reg),
+                trainable=True)
 
         super(Linear, self).build(input_shape)  # Be sure to call this somewhere!
 
-    def call(self, inputs , **kwargs):
-
+    def call(self, inputs, **kwargs):
         if self.mode == 0:
             sparse_input = inputs
             linear_logit = reduce_sum(sparse_input, axis=-1, keep_dims=True)
         elif self.mode == 1:
             dense_input = inputs
-            linear_logit = self.dense(dense_input)
-
+            fc = tf.tensordot(dense_input, self.kernel, axes=(-1, 0))
+            linear_logit = fc
         else:
             sparse_input, dense_input = inputs
+            fc = tf.tensordot(dense_input, self.kernel, axes=(-1, 0))
+            linear_logit = reduce_sum(sparse_input, axis=-1, keep_dims=False) + fc
+        if self.use_bias:
+            linear_logit += self.bias
 
-            linear_logit = reduce_sum(sparse_input, axis=-1, keep_dims=False) + self.dense(dense_input)
-
-        linear_bias_logit = linear_logit + self.bias
-
-        return linear_bias_logit
+        return linear_logit
 
     def compute_output_shape(self, input_shape):
         return (None, 1)
 
+    def compute_mask(self, inputs, mask):
+        return None
+
     def get_config(self, ):
-        config = {'mode': self.mode, 'l2_reg': self.l2_reg}
+        config = {'mode': self.mode, 'l2_reg': self.l2_reg,'use_bias':self.use_bias}
         base_config = super(Linear, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
 
-def concat_fun(inputs, axis=-1):
+def concat_func(inputs, axis=-1, mask=False):
+    if not mask:
+        inputs = list(map(NoMask(), inputs))
     if len(inputs) == 1:
         return inputs[0]
     else:
@@ -181,3 +200,37 @@ def softmax(logits, dim=-1, name=None):
         return tf.nn.softmax(logits, dim=dim, name=name)
     else:
         return tf.nn.softmax(logits, axis=dim, name=name)
+
+
+class Add(tf.keras.layers.Layer):
+    def __init__(self, **kwargs):
+        super(Add, self).__init__(**kwargs)
+
+    def build(self, input_shape):
+        # Be sure to call this somewhere!
+        super(Add, self).build(input_shape)
+
+    def call(self, inputs, **kwargs):
+        if not isinstance(inputs,list):
+            return inputs
+        if len(inputs) == 1  :
+            return inputs[0]
+        if len(inputs) == 0:
+            return tf.constant([[0.0]])
+
+        return tf.keras.layers.add(inputs)
+def add_func(inputs):
+    return Add()(inputs)
+
+
+def combined_dnn_input(sparse_embedding_list, dense_value_list):
+    if len(sparse_embedding_list) > 0 and len(dense_value_list) > 0:
+        sparse_dnn_input = Flatten()(concat_func(sparse_embedding_list))
+        dense_dnn_input = Flatten()(concat_func(dense_value_list))
+        return concat_func([sparse_dnn_input, dense_dnn_input])
+    elif len(sparse_embedding_list) > 0:
+        return Flatten()(concat_func(sparse_embedding_list))
+    elif len(dense_value_list) > 0:
+        return Flatten()(concat_func(dense_value_list))
+    else:
+        raise NotImplementedError("dnn_feature_columns can not be empty list")

@@ -1,8 +1,9 @@
 # -*- coding:utf-8 -*-
 """
 
-Author:
-    Weichen Shen,wcshen1994@163.com
+Authors:
+    Weichen Shen,wcshen1994@163.com,
+    Harshit Pande
 
 """
 
@@ -11,13 +12,14 @@ import itertools
 import tensorflow as tf
 from tensorflow.python.keras import backend as K
 from tensorflow.python.keras.initializers import (Zeros, glorot_normal,
-                                                  glorot_uniform)
+                                                  glorot_uniform, TruncatedNormal)
 from tensorflow.python.keras.layers import Layer
 from tensorflow.python.keras.regularizers import l2
+from tensorflow.python.keras.backend import batch_dot
 from tensorflow.python.layers import utils
 
 from .activation import activation_layer
-from .utils import concat_fun,reduce_sum,softmax,reduce_mean
+from .utils import concat_func, reduce_sum, softmax, reduce_mean
 
 
 class AFMLayer(Layer):
@@ -56,6 +58,8 @@ class AFMLayer(Layer):
     def build(self, input_shape):
 
         if not isinstance(input_shape, list) or len(input_shape) < 2:
+            #input_shape = input_shape[0]
+            #if not isinstance(input_shape, list) or len(input_shape) < 2:
             raise ValueError('A `AttentionalFM` layer should be called '
                              'on a list of at least 2 inputs')
 
@@ -122,7 +126,7 @@ class AFMLayer(Layer):
         attention_output = reduce_sum(
             self.normalized_att_score * bi_interaction, axis=1)
 
-        attention_output = self.dropout(attention_output)  # training
+        attention_output = self.dropout(attention_output,training=training)  # training
 
         afm_out = self.tensordot([attention_output, self.projection_p])
         return afm_out
@@ -235,7 +239,7 @@ class CIN(Layer):
                                                 shape=[1, self.field_nums[-1]
                                                        * self.field_nums[0], size],
                                                 dtype=tf.float32, initializer=glorot_uniform(
-                                                    seed=self.seed + i),
+                    seed=self.seed + i),
                                                 regularizer=l2(self.l2_reg)))
 
             self.bias.append(self.add_weight(name='bias' + str(i), shape=[size], dtype=tf.float32,
@@ -843,7 +847,7 @@ class FGCNNLayer(Layer):
             new_feature_list.append(
                 tf.reshape(new_result, (-1, int(pooling_result.shape[1]) * new_filters, embedding_size)))
 
-        new_features = concat_fun(new_feature_list, axis=1)
+        new_features = concat_func(new_feature_list, axis=1)
         return new_features
 
     def compute_output_shape(self, input_shape):
@@ -906,11 +910,10 @@ class SENETLayer(Layer):
         - **seed** : A Python integer to use as random seed.
 
       References
-        - [FiBiNET: Combining Feature Importance and Bilinear feature Interaction for Click-Through Rate Prediction
-Tongwen](https://arxiv.org/pdf/1905.09433.pdf)
+        - [FiBiNET: Combining Feature Importance and Bilinear feature Interaction for Click-Through Rate Prediction](https://arxiv.org/pdf/1905.09433.pdf)
     """
 
-    def __init__(self, reduction_ratio=3,  seed=1024, **kwargs):
+    def __init__(self, reduction_ratio=3, seed=1024, **kwargs):
         self.reduction_ratio = reduction_ratio
 
         self.seed = seed
@@ -924,7 +927,7 @@ Tongwen](https://arxiv.org/pdf/1905.09433.pdf)
 
         self.filed_size = len(input_shape)
         self.embedding_size = input_shape[0][-1]
-        reduction_size = max(1, self.filed_size//self.reduction_ratio)
+        reduction_size = max(1, self.filed_size // self.reduction_ratio)
 
         self.W_1 = self.add_weight(shape=(
             self.filed_size, reduction_size), initializer=glorot_normal(seed=self.seed), name="W_1")
@@ -943,8 +946,8 @@ Tongwen](https://arxiv.org/pdf/1905.09433.pdf)
             raise ValueError(
                 "Unexpected inputs dimensions %d, expect to be 3 dimensions" % (K.ndim(inputs)))
 
-        inputs = concat_fun(inputs, axis=1)
-        Z = reduce_mean(inputs, axis=-1,)
+        inputs = concat_func(inputs, axis=1)
+        Z = reduce_mean(inputs, axis=-1, )
 
         A_1 = tf.nn.relu(self.tensordot([Z, self.W_1]))
         A_2 = tf.nn.relu(self.tensordot([A_1, self.W_2]))
@@ -957,7 +960,7 @@ Tongwen](https://arxiv.org/pdf/1905.09433.pdf)
         return input_shape
 
     def compute_mask(self, inputs, mask=None):
-        return [None]*self.filed_size
+        return [None] * self.filed_size
 
     def get_config(self, ):
         config = {'reduction_ratio': self.reduction_ratio, 'seed': self.seed}
@@ -980,8 +983,7 @@ class BilinearInteraction(Layer):
         - **seed** : A Python integer to use as random seed.
 
       References
-        - [FiBiNET: Combining Feature Importance and Bilinear feature Interaction for Click-Through Rate Prediction
-Tongwen](https://arxiv.org/pdf/1905.09433.pdf)
+        - [FiBiNET: Combining Feature Importance and Bilinear feature Interaction for Click-Through Rate Prediction](https://arxiv.org/pdf/1905.09433.pdf)
 
     """
 
@@ -1003,10 +1005,11 @@ Tongwen](https://arxiv.org/pdf/1905.09433.pdf)
                 seed=self.seed), name="bilinear_weight")
         elif self.bilinear_type == "each":
             self.W_list = [self.add_weight(shape=(embedding_size, embedding_size), initializer=glorot_normal(
-                seed=self.seed), name="bilinear_weight"+str(i)) for i in range(len(input_shape)-1)]
+                seed=self.seed), name="bilinear_weight" + str(i)) for i in range(len(input_shape) - 1)]
         elif self.bilinear_type == "interaction":
             self.W_list = [self.add_weight(shape=(embedding_size, embedding_size), initializer=glorot_normal(
-                seed=self.seed), name="bilinear_weight"+str(i)+'_'+str(j)) for i, j in itertools.combinations(range(len(input_shape)), 2)]
+                seed=self.seed), name="bilinear_weight" + str(i) + '_' + str(j)) for i, j in
+                           itertools.combinations(range(len(input_shape)), 2)]
         else:
             raise NotImplementedError
 
@@ -1030,15 +1033,218 @@ Tongwen](https://arxiv.org/pdf/1905.09433.pdf)
                  for v, w in zip(itertools.combinations(inputs, 2), self.W_list)]
         else:
             raise NotImplementedError
-        return concat_fun(p)
+        return concat_func(p)
 
     def compute_output_shape(self, input_shape):
         filed_size = len(input_shape)
         embedding_size = input_shape[0][-1]
 
-        return (None, 1, filed_size*(filed_size-1)//2 * embedding_size)
+        return (None, 1, filed_size * (filed_size - 1) // 2 * embedding_size)
 
     def get_config(self, ):
         config = {'bilinear_type': self.bilinear_type, 'seed': self.seed}
         base_config = super(BilinearInteraction, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
+
+
+class FieldWiseBiInteraction(Layer):
+    """Field-Wise Bi-Interaction Layer used in FLEN,compress the
+     pairwise element-wise product of features into one single vector.
+
+      Input shape
+        - A list of 3D tensor with shape:``(batch_size,field_size,embedding_size)``.
+
+      Output shape
+        - 2D tensor with shape: ``(batch_size,embedding_size)``.
+
+      Arguments
+        - **use_bias** : Boolean, if use bias.
+        - **seed** : A Python integer to use as random seed.
+
+      References
+        - [FLEN: Leveraging Field for Scalable CTR Prediction](https://arxiv.org/pdf/1911.04690)
+
+    """
+
+    def __init__(self, use_bias=True, seed=1024, **kwargs):
+        self.use_bias = use_bias
+        self.seed = seed
+
+        super(FieldWiseBiInteraction, self).__init__(**kwargs)
+
+    def build(self, input_shape):
+
+        if not isinstance(input_shape, list) or len(input_shape) < 2:
+            raise ValueError(
+                'A `Field-Wise Bi-Interaction` layer should be called '
+                'on a list of at least 2 inputs')
+
+        self.num_fields = len(input_shape)
+        embedding_size = input_shape[0][-1]
+
+        self.kernel_mf = self.add_weight(
+            name='kernel_mf',
+            shape=(int(self.num_fields * (self.num_fields - 1) / 2), 1),
+            initializer=tf.keras.initializers.Ones(),
+            regularizer=None,
+            trainable=True)
+
+        self.kernel_fm = self.add_weight(
+            name='kernel_fm',
+            shape=(self.num_fields, 1),
+            initializer=tf.keras.initializers.Constant(value=0.5),
+            regularizer=None,
+            trainable=True)
+        if self.use_bias:
+            self.bias_mf = self.add_weight(name='bias_mf',
+                                           shape=(embedding_size),
+                                           initializer=Zeros())
+            self.bias_fm = self.add_weight(name='bias_fm',
+                                           shape=(embedding_size),
+                                           initializer=Zeros())
+
+        super(FieldWiseBiInteraction,
+              self).build(input_shape)  # Be sure to call this somewhere!
+
+    def call(self, inputs, **kwargs):
+
+        if K.ndim(inputs[0]) != 3:
+            raise ValueError(
+                "Unexpected inputs dimensions %d, expect to be 3 dimensions" %
+                (K.ndim(inputs)))
+
+        field_wise_embeds_list = inputs
+
+        # MF module
+        field_wise_vectors = tf.concat([
+            reduce_sum(field_i_vectors, axis=1, keep_dims=True)
+            for field_i_vectors in field_wise_embeds_list
+        ], 1)
+
+        left = []
+        right = []
+
+        for i, j in itertools.combinations(list(range(self.num_fields)), 2):
+            left.append(i)
+            right.append(j)
+
+        embeddings_left = tf.gather(params=field_wise_vectors,
+                                    indices=left,
+                                    axis=1)
+        embeddings_right = tf.gather(params=field_wise_vectors,
+                                     indices=right,
+                                     axis=1)
+
+        embeddings_prod = embeddings_left * embeddings_right
+        field_weighted_embedding = embeddings_prod * self.kernel_mf
+        h_mf = reduce_sum(field_weighted_embedding, axis=1)
+        if self.use_bias:
+            h_mf = tf.nn.bias_add(h_mf, self.bias_mf)
+
+        # FM module
+        square_of_sum_list = [
+            tf.square(reduce_sum(field_i_vectors, axis=1, keep_dims=True))
+            for field_i_vectors in field_wise_embeds_list
+        ]
+        sum_of_square_list = [
+            reduce_sum(field_i_vectors * field_i_vectors,
+                       axis=1,
+                       keep_dims=True)
+            for field_i_vectors in field_wise_embeds_list
+        ]
+
+        field_fm = tf.concat([
+            square_of_sum - sum_of_square for square_of_sum, sum_of_square in
+            zip(square_of_sum_list, sum_of_square_list)
+        ], 1)
+
+        h_fm = reduce_sum(field_fm * self.kernel_fm, axis=1)
+        if self.use_bias:
+            h_fm = tf.nn.bias_add(h_fm, self.bias_fm)
+
+        return h_mf + h_fm
+
+    def compute_output_shape(self, input_shape):
+        return (None, input_shape[0][-1])
+
+    def get_config(self, ):
+        config = {'use_bias': self.use_bias, 'seed': self.seed}
+        base_config = super(FieldWiseBiInteraction, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
+
+class FwFMLayer(Layer):
+    """Field-weighted Factorization Machines
+
+      Input shape
+        - 3D tensor with shape: ``(batch_size,field_size,embedding_size)``.
+
+      Output shape
+        - 2D tensor with shape: ``(batch_size, 1)``.
+
+      Arguments
+        - **num_fields** : integer for number of fields
+        - **regularizer** : L2 regularizer weight for the field strength parameters of FwFM
+
+      References
+        - [Field-weighted Factorization Machines for Click-Through Rate Prediction in Display Advertising]
+        https://arxiv.org/pdf/1806.03514.pdf
+    """
+
+    def __init__(self, num_fields=4, regularizer=0.000001, **kwargs):
+        self.num_fields = num_fields
+        self.regularizer = regularizer
+        super(FwFMLayer, self).__init__(**kwargs)
+
+    def build(self, input_shape):
+        if len(input_shape) != 3:
+            raise ValueError("Unexpected inputs dimensions % d,\
+                             expect to be 3 dimensions" % (len(input_shape)))
+
+        if input_shape[1] != self.num_fields:
+            raise ValueError("Mismatch in number of fields {} and \
+                 concatenated embeddings dims {}".format(self.num_fields, input_shape[1]))
+
+        self.field_strengths = self.add_weight(name='field_pair_strengths',
+                                               shape=(self.num_fields, self.num_fields),
+                                               initializer=TruncatedNormal(),
+                                               regularizer=l2(self.regularizer),
+                                               trainable=True)
+
+        super(FwFMLayer, self).build(input_shape)  # Be sure to call this somewhere!
+
+    def call(self, inputs, **kwargs):
+        if K.ndim(inputs) != 3:
+            raise ValueError(
+                "Unexpected inputs dimensions %d, expect to be 3 dimensions"
+                % (K.ndim(inputs)))
+
+        if inputs.shape[1] != self.num_fields:
+            raise ValueError("Mismatch in number of fields {} and \
+                 concatenated embeddings dims {}".format(self.num_fields, inputs.shape[1]))
+
+        pairwise_inner_prods = []
+        for fi, fj in itertools.combinations(range(self.num_fields), 2):
+            # get field strength for pair fi and fj
+            r_ij = self.field_strengths[fi, fj]
+
+            # get embeddings for the features of both the fields
+            feat_embed_i = tf.squeeze(inputs[0:, fi:fi + 1, 0:], axis=1)
+            feat_embed_j = tf.squeeze(inputs[0:, fj:fj + 1, 0:], axis=1)
+
+            f = tf.scalar_mul(r_ij, batch_dot(feat_embed_i, feat_embed_j, axes=1))
+            pairwise_inner_prods.append(f)
+
+        sum_ = tf.add_n(pairwise_inner_prods)
+        return sum_
+
+    def compute_output_shape(self, input_shape):
+        return (None, 1)
+
+    def get_config(self):
+        config = super(FwFMLayer, self).get_config().copy()
+        config.update({
+            'num_fields': self.num_fields,
+            'regularizer': self.regularizer
+        })
+        return config

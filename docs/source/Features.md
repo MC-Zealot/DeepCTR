@@ -2,9 +2,9 @@
 
 ## Overview
 
-With the great success of deep learning,DNN-based techniques have been widely used in CTR estimation task.
+With the great success of deep learning,DNN-based techniques have been widely used in CTR prediction task.
 
-DNN based CTR estimation models consists of the following 4 modules:
+DNN based CTR prediction models usually have following 4 modules:
 `Input,Embedding,Low-order&High-order Feature Extractor,Prediction`
 
 - Input&Embedding
@@ -21,6 +21,38 @@ DNN based CTR estimation models consists of the following 4 modules:
 
  > High-order Extractor learns feature combination through complex neural network functions like MLP,Cross Net,etc.
 
+## Feature Columns
+### SparseFeat
+``SparseFeat`` is a namedtuple with signature ``SparseFeat(name, vocabulary_size, embedding_dim, use_hash, dtype, embeddings_initializer, embedding_name, group_name, trainable)``
+
+- name : feature name
+- vocabulary_size : number of unique feature values for sprase feature or hashing space when `use_hash=True`
+- embedding_dim : embedding dimension
+- use_hash : defualt `False`.If `True` the input will be hashed to space of size `vocabulary_size`.
+- dtype : default `float32`.dtype of input tensor.
+- embeddings_initializer : initializer for the `embeddings` matrix.
+- embedding_name : default `None`. If None, the embedding_name will be same as `name`.
+- group_name : feature group of this feature.
+- trainable: default `True`.Whether or not the embedding is trainable.
+
+### DenseFeat
+``DenseFeat`` is a namedtuple with signature ``DenseFeat(name, dimension, dtype)``
+
+- name : feature name
+- dimension : dimension of dense feature vector.
+- dtype : default `float32`.dtype of input tensor.
+
+### VarLenSparseFeat
+
+``VarLenSparseFeat`` is a namedtuple with signature ``VarLenSparseFeat(sparsefeat, maxlen, combiner, length_name, weight_name,weight_norm)``
+
+- sparsefeat : a instance of `SparseFeat`
+- maxlen : maximum length of this feature for all samples
+- combiner : pooling method,can be ``sum``,``mean`` or ``max``
+- length_name : feature length name,if `None`, value 0 in feature is for padding.
+- weight_name : default `None`. If not None, the sequence feature will be multiplyed by the feature whose name is `weight_name`.
+- weight_norm : default `True`. Whether normalize the weight score or not.
+
 ## Models
 
 
@@ -30,6 +62,8 @@ DNN based CTR estimation models consists of the following 4 modules:
 CCPM can extract local-global key features from an input instance with varied elements, which can be implemented for not only single ad impression but also sequential ad impression. 
 
 [**CCPM Model API**](./deepctr.models.ccpm.html)
+[**CCPM Estimator API**](./deepctr.estimator.models.ccpm.html)
+
 ![CCPM](../pics/CCPM.png)
 
 [Liu Q, Yu F, Wu S, et al. A convolutional click prediction model[C]//Proceedings of the 24th ACM International on Conference on Information and Knowledge Management. ACM, 2015: 1743-1746.](http://ir.ia.ac.cn/bitstream/173211/12337/1/A%20Convolutional%20Click%20Prediction%20Model.pdf) 
@@ -42,6 +76,7 @@ It use FM's latent vector to initialiaze the embedding vectors.During the traini
 concatenates the embedding vectors and feeds them into a MLP(MultiLayer Perceptron). 
 
 [**FNN Model API**](./deepctr.models.fnn.html)
+[**FNN Estimator API**](./deepctr.estimator.models.fnn.html)
 
 ![FNN](../pics/FNN.png)
 
@@ -53,6 +88,7 @@ concatenates the embedding vectors and feeds them into a MLP(MultiLayer Perceptr
 PNN concatenates sparse feature embeddings and the product between  embedding vectors as the input of MLP. 
 
 [**PNN Model API**](./deepctr.models.pnn.html)
+[**PNN Estimator API**](./deepctr.estimator.models.pnn.html)
 
 ![PNN](../pics/PNN.png)
 
@@ -65,6 +101,7 @@ WDL's deep part concatenates sparse feature embeddings as the input of MLP,the w
 The logits of deep part and wide part are added to get the prediction probability.
 
 [**WDL Model API**](./deepctr.models.wdl.html)
+[**WDL Estimator API**](./deepctr.estimator.models.wdl.html)
 
 ![WDL](../pics/WDL.png)
 
@@ -79,6 +116,7 @@ Compared with FNN,the embedding vector of FM and input to MLP are same.
 And they do not need a FM pretrained vector to initialiaze,they are learned end2end. 
 
 [**DeepFM Model API**](./deepctr.models.deepfm.html)
+[**DeepFM Estimator API**](./deepctr.estimator.models.deepfm.html)
 
 ![DeepFM](../pics/DeepFM.png)
 
@@ -104,6 +142,7 @@ embedding vectors and compress the result into a singe vector which has the same
 And then fed it into a MLP.The output logit of MLP and the output logit of linear part are added to get the prediction probability. 
 
 [**NFM Model API**](./deepctr.models.nfm.html)
+[**NFM Estimator API**](./deepctr.estimator.models.nfm.html)
 
 ![NFM](../pics/NFM.png)
 
@@ -116,6 +155,7 @@ AFM is a variant of FM,tradional FM sums the inner product of embedding vector u
 AFM can be seen as weighted sum of feature interactions.The weight is learned by a small MLP. 
 
 [**AFM Model API**](./deepctr.models.afm.html)
+[**AFM Estimator API**](./deepctr.estimator.models.afm.html)
 
 ![AFM](../pics/AFM.png)
 
@@ -128,6 +168,7 @@ DCN use a Cross Net to learn both low and high order feature interaction explici
 The output of Cross Net and MLP are concatenated.The concatenated vector are feed into one fully connected layer to get the prediction probability. 
 
 [**DCN Model API**](./deepctr.models.dcn.html)
+[**DCN Estimator API**](./deepctr.estimator.models.dcn.html)
 
 ![DCN](../pics/DCN.png)
 
@@ -170,6 +211,7 @@ In each layer of CIN,first compute outer products between $x^k$ and $x_0$ to get
 Finally,apply sum pooling on all the feature maps $H_k$ to get one vector.The vector is used to compute the logit that CIN contributes.
 
 [**xDeepFM Model API**](./deepctr.models.xdeepfm.html)
+[**xDeepFM Estimator API**](./deepctr.estimator.models.xdeepfn.html)
 
 ![CIN](../pics/CIN.png)
 
@@ -185,6 +227,7 @@ Within each interacting layer, each feature is allowed to interact with all the 
 By stacking multiple interacting layers,AutoInt is able to model different orders of feature interactions. 
 
 [**AutoInt Model API**](./deepctr.models.autoint.html)
+[**AutoInt Estimator API**](./deepctr.estimator.models.autoint.html)
 
 ![InteractingLayer](../pics/InteractingLayer.png)
 
@@ -192,13 +235,13 @@ By stacking multiple interacting layers,AutoInt is able to model different order
 
 [Song W, Shi C, Xiao Z, et al. AutoInt: Automatic Feature Interaction Learning via Self-Attentive Neural Networks[J]. arXiv preprint arXiv:1810.11921, 2018.](https://arxiv.org/abs/1810.11921)
 
-### NFFM(Operation-aware Neural Networks for User Response Prediction)
+### ONN(Operation-aware Neural Networks for User Response Prediction)
 
-NFFM models second order feature interactions like like FFM and preserves second-order interaction information  as much as possible.Further more,deep neural network is used to learn higher-ordered feature interactions. 
+ONN models second order feature interactions like like FFM and preserves second-order interaction information  as much as possible.Further more,deep neural network is used to learn higher-ordered feature interactions. 
 
-[**NFFM Model API**](./deepctr.models.nffm.html)
+[**ONN Model API**](./deepctr.models.onn.html)
 
-![NFFM](../pics/NFFM.png)
+![ONN](../pics/ONN.png)
 
 [Yang Y, Xu B, Shen F, et al. Operation-aware Neural Networks for User Response Prediction[J]. arXiv preprint arXiv:1904.12579, 2019.](https://arxiv.org/pdf/1904.12579.pdf)
 
@@ -228,12 +271,24 @@ Deep Session Interest Network (DSIN) extracts users' multiple historical session
 
 Feature Importance and Bilinear feature Interaction NETwork is proposed to dynamically learn the feature importance and fine-grained feature interactions. On the one hand, the FiBiNET can dynamically learn the importance of fea- tures via the Squeeze-Excitation network (SENET) mechanism; on the other hand, it is able to effectively learn the feature interactions via bilinear function.
 
-[**FiBiNET Model API**](./deepctr.models.fibinet.html)  
+[**FiBiNET Model API**](./deepctr.models.fibinet.html) 
+[**FiBiNET Estimator API**](./deepctr.estimator.models.fibinet.html) 
 
 ![FiBiNET](../pics/FiBiNET.png)
 
 [Huang T, Zhang Z, Zhang J. FiBiNET: Combining Feature Importance and Bilinear feature Interaction for Click-Through Rate Prediction[J]. arXiv preprint arXiv:1905.09433, 2019.](https://arxiv.org/pdf/1905.09433.pdf)
 
+### FLEN(Field-Leveraged Embedding Network)
+
+A large-scale CTR prediction model with efficient usage of field information to alleviate gradient coupling problem.
+
+[**FLEN Model API**](./deepctr.models.flen.html)  
+
+[FLEN example](https://github.com/shenweichen/DeepCTR/tree/master/examples/run_flen.py)
+
+![FLEN](../pics/FLEN.jpg)
+
+[Chen W, Zhan L, Ci Y, Lin C. FLEN: Leveraging Field for Scalable CTR Prediction[J]. arXiv preprint arXiv:1911.04690, 2019.](https://arxiv.org/pdf/1911.04690.pdf)
 
 ## Layers
 
