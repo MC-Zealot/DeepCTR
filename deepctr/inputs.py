@@ -21,8 +21,7 @@ def get_inputs_list(inputs):
     return list(chain(*list(map(lambda x: x.values(), filter(lambda x: x is not None, inputs)))))
 
 
-def create_embedding_dict(sparse_feature_columns, varlen_sparse_feature_columns, seed, l2_reg,
-                          prefix='sparse_', seq_mask_zero=True):
+def create_embedding_dict(sparse_feature_columns, varlen_sparse_feature_columns, seed, l2_reg, prefix='sparse_', seq_mask_zero=True):
     sparse_embedding = {}
     for feat in sparse_feature_columns:
         emb = Embedding(feat.vocabulary_size, feat.embedding_dim,
@@ -62,12 +61,9 @@ def get_embedding_vec_list(embedding_dict, input_dict, sparse_feature_columns, r
 
 
 def create_embedding_matrix(feature_columns, l2_reg, seed, prefix="", seq_mask_zero=True):
-    sparse_feature_columns = list(
-        filter(lambda x: isinstance(x, fc_lib.SparseFeat), feature_columns)) if feature_columns else []
-    varlen_sparse_feature_columns = list(
-        filter(lambda x: isinstance(x, fc_lib.VarLenSparseFeat), feature_columns)) if feature_columns else []
-    sparse_emb_dict = create_embedding_dict(sparse_feature_columns, varlen_sparse_feature_columns, seed,
-                                            l2_reg, prefix=prefix + 'sparse', seq_mask_zero=seq_mask_zero)
+    sparse_feature_columns = list(filter(lambda x: isinstance(x, fc_lib.SparseFeat), feature_columns)) if feature_columns else []
+    varlen_sparse_feature_columns = list(filter(lambda x: isinstance(x, fc_lib.VarLenSparseFeat), feature_columns)) if feature_columns else []
+    sparse_emb_dict = create_embedding_dict(sparse_feature_columns, varlen_sparse_feature_columns, seed, l2_reg, prefix=prefix + 'sparse', seq_mask_zero=seq_mask_zero)
     return sparse_emb_dict
 
 

@@ -33,22 +33,17 @@ def WDL(linear_feature_columns, dnn_feature_columns, dnn_hidden_units=(128, 128)
     :return: A Keras model instance.
     """
 
-    features = build_input_features(
-        linear_feature_columns + dnn_feature_columns)
+    features = build_input_features(linear_feature_columns + dnn_feature_columns)
 
     inputs_list = list(features.values())
 
-    linear_logit = get_linear_logit(features, linear_feature_columns, seed=seed, prefix='linear',
-                                    l2_reg=l2_reg_linear)
+    linear_logit = get_linear_logit(features, linear_feature_columns, seed=seed, prefix='linear', l2_reg=l2_reg_linear)
 
-    sparse_embedding_list, dense_value_list = input_from_feature_columns(features, dnn_feature_columns,
-                                                                         l2_reg_embedding, seed)
+    sparse_embedding_list, dense_value_list = input_from_feature_columns(features, dnn_feature_columns, l2_reg_embedding, seed)
 
     dnn_input = combined_dnn_input(sparse_embedding_list, dense_value_list)
-    dnn_out = DNN(dnn_hidden_units, dnn_activation, l2_reg_dnn, dnn_dropout,
-                  False, seed)(dnn_input)
-    dnn_logit = Dense(
-        1, use_bias=False, activation=None)(dnn_out)
+    dnn_out = DNN(dnn_hidden_units, dnn_activation, l2_reg_dnn, dnn_dropout, False, seed)(dnn_input)
+    dnn_logit = Dense(1, use_bias=False, activation=None)(dnn_out)
 
     final_logit = add_func([dnn_logit, linear_logit])
 
