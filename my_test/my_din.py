@@ -32,6 +32,12 @@ def get_xy_fd():
 
 
 if __name__ == "__main__":
+    """
+    1. 生成训练数据为txt格式的，逗号分割字段
+    2. 转换成tfrecord
+    3. 读取数据，区分dense, sparse, VarLenSparse, 用户行为序列特征
+    4. 分别喂到模型中，看看会怎么样
+    """
     x, y, feature_columns, behavior_feature_list = get_xy_fd()
     model = DIN(feature_columns, behavior_feature_list)
     model.compile('adam', 'binary_crossentropy',
