@@ -6,10 +6,13 @@ from deepctr.feature_column import SparseFeat, VarLenSparseFeat, DenseFeat,get_f
 
 def get_xy_fd():
 
-    feature_columns = [SparseFeat('user',3,embedding_dim=10),SparseFeat(
-        'gender', 2,embedding_dim=4), SparseFeat('item_id', 3 + 1,embedding_dim=8), SparseFeat('cate_id', 2 + 1,embedding_dim=4),DenseFeat('pay_score', 1)]
-    feature_columns += [VarLenSparseFeat(SparseFeat('hist_item_id', vocabulary_size=3 + 1,embedding_dim=8,embedding_name='item_id'), maxlen=4),
-                        VarLenSparseFeat(SparseFeat('hist_cate_id', 2 + 1,embedding_dim=4, embedding_name='cate_id'), maxlen=4)]
+    feature_columns = [SparseFeat('user',3,         embedding_dim=10),
+                       SparseFeat('gender', 2,      embedding_dim=4),
+                       SparseFeat('item_id', 3 + 1, embedding_dim=8),
+                       SparseFeat('cate_id', 2 + 1, embedding_dim=4),
+                       DenseFeat('pay_score', 1)]
+    feature_columns += [VarLenSparseFeat(SparseFeat('hist_item_id', vocabulary_size=3 + 1,embedding_dim=8, embedding_name='item_id'), maxlen=4),
+                        VarLenSparseFeat(SparseFeat('hist_cate_id', 2 + 1,                embedding_dim=4, embedding_name='cate_id'), maxlen=4)]
 
     behavior_feature_list = ["item_id", "cate_id"]
     uid = np.array([0, 1, 2])
