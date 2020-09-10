@@ -15,6 +15,7 @@ from ..inputs import create_embedding_matrix, embedding_lookup, get_dense_input,
 from ..layers.core import DNN, PredictionLayer
 from ..layers.sequence import AttentionSequencePoolingLayer
 from ..layers.utils import concat_func, NoMask, combined_dnn_input
+import tensorflow as tf
 
 
 def DIN(dnn_feature_columns, history_feature_list, dnn_use_bn=False,
@@ -73,7 +74,8 @@ def DIN(dnn_feature_columns, history_feature_list, dnn_use_bn=False,
     keys_emb = concat_func(keys_emb_list, mask=True)
     deep_input_emb = concat_func(dnn_input_emb_list)
     query_emb = concat_func(query_emb_list, mask=True)
-    hist = AttentionSequencePoolingLayer(att_hidden_size, att_activation,
+    hist = AttentionSequencePoolingLayer(att_hidden_size,
+                                         att_activation,
                                          weight_normalization=att_weight_normalization,
                                          supports_masking=True)([query_emb, keys_emb])
 
@@ -86,4 +88,5 @@ def DIN(dnn_feature_columns, history_feature_list, dnn_use_bn=False,
     output = PredictionLayer(task)(final_logit)
 
     model = Model(inputs=inputs_list, outputs=output)
+    # model.add(tf.python.keras.layers.Dense(64, activation='relu'))
     return model

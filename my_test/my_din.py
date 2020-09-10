@@ -2,7 +2,7 @@ import numpy as np
 
 from deepctr.models import DIN
 from deepctr.feature_column import SparseFeat, VarLenSparseFeat, DenseFeat,get_feature_names
-
+from tensorflow import keras
 
 def get_xy_fd():
 
@@ -30,16 +30,19 @@ def get_xy_fd():
     y = np.array([1, 0, 1])
     return x, y, feature_columns, behavior_feature_list
 
-
-if __name__ == "__main__":
+def example_din():
     """
     1. 生成训练数据为txt格式的，逗号分割字段
     2. 转换成tfrecord
     3. 读取数据，区分dense, sparse, VarLenSparse, 用户行为序列特征
     4. 分别喂到模型中，看看会怎么样
+    :return:
     """
     x, y, feature_columns, behavior_feature_list = get_xy_fd()
     model = DIN(feature_columns, behavior_feature_list)
-    model.compile('adam', 'binary_crossentropy',
-                  metrics=['binary_crossentropy'])
+    model.compile('adam', 'binary_crossentropy', metrics=[keras.metrics.AUC(),keras.metrics.categorical_accuracy])
     history = model.fit(x, y, verbose=1, epochs=10, validation_split=0.5)
+    print("history: ", history)
+
+if __name__ == "__main__":
+    example_din()
