@@ -39,10 +39,11 @@ def example_din():
     4. 分别喂到模型中，看看会怎么样
     :return:
     """
-    x, y, feature_columns, behavior_feature_list = get_xy_fd()
+    x, y, feature_columns, behavior_feature_list = get_xy_fd() #说一下哪几列是当前的item需要和历史的行为进行attention的。所以之后就可以尝试，还是像之前一样读数据，然后只是把需要attention的列名单拿出来，放到list中就可以了
     model = DIN(feature_columns, behavior_feature_list)
-    model.compile('adam', keras.losses.binary_crossentropy, metrics=[keras.metrics.AUC(),keras.metrics.categorical_accuracy])
-    history = model.fit(x, y, verbose=1, epochs=10, validation_split=0.5)
+    model.compile('adam', keras.losses.binary_crossentropy, metrics=[keras.metrics.AUC(), keras.metrics.categorical_accuracy])
+    # history = model.fit(x, y, verbose=1, epochs=10, validation_split=0.5)
+    history = model.fit(x, y, verbose=1, epochs=10, validation_data=(x,y))
     print("history: ", history)
 
 if __name__ == "__main__":
