@@ -3,6 +3,7 @@ import numpy as np
 from deepctr.models import DIN
 from deepctr.feature_column import SparseFeat, VarLenSparseFeat, DenseFeat,get_feature_names
 from tensorflow import keras
+import tensorflow as tf
 
 def get_xy_fd():
 
@@ -40,7 +41,7 @@ def example_din():
     """
     x, y, feature_columns, behavior_feature_list = get_xy_fd()
     model = DIN(feature_columns, behavior_feature_list)
-    model.compile('adam', 'binary_crossentropy', metrics=[keras.metrics.AUC(),keras.metrics.categorical_accuracy])
+    model.compile('adam', keras.losses.binary_crossentropy, metrics=[keras.metrics.AUC(),keras.metrics.categorical_accuracy])
     history = model.fit(x, y, verbose=1, epochs=10, validation_split=0.5)
     print("history: ", history)
 
