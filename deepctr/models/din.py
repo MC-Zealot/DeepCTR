@@ -11,11 +11,11 @@ from tensorflow.python.keras.layers import Dense, Concatenate, Flatten
 from tensorflow.python.keras.models import Model
 
 from ..feature_column import SparseFeat, VarLenSparseFeat, DenseFeat, build_input_features
-from ..inputs import create_embedding_matrix, embedding_lookup, get_dense_input, varlen_embedding_lookup, \
-    get_varlen_pooling_list
+from ..inputs import create_embedding_matrix, embedding_lookup, get_dense_input, varlen_embedding_lookup, get_varlen_pooling_list
 from ..layers.core import DNN, PredictionLayer
 from ..layers.sequence import AttentionSequencePoolingLayer
 from ..layers.utils import concat_func, NoMask, combined_dnn_input
+import tensorflow as tf
 
 
 def DIN(dnn_feature_columns, history_feature_list, dnn_use_bn=False,
@@ -74,7 +74,10 @@ def DIN(dnn_feature_columns, history_feature_list, dnn_use_bn=False,
     keys_emb = concat_func(keys_emb_list, mask=True)
     deep_input_emb = concat_func(dnn_input_emb_list)
     query_emb = concat_func(query_emb_list, mask=True)
-    hist = AttentionSequencePoolingLayer(att_hidden_size, att_activation, weight_normalization=att_weight_normalization, supports_masking=True)([query_emb, keys_emb])
+    hist = AttentionSequencePoolingLayer(att_hidden_size,
+                                         att_activation,
+                                         weight_normalization=att_weight_normalization,
+                                         supports_masking=True)([query_emb, keys_emb])
 
     deep_input_emb = Concatenate()([NoMask()(deep_input_emb), hist])
     deep_input_emb = Flatten()(deep_input_emb)
@@ -85,4 +88,5 @@ def DIN(dnn_feature_columns, history_feature_list, dnn_use_bn=False,
     output = PredictionLayer(task)(final_logit)
 
     model = Model(inputs=inputs_list, outputs=output)
+    # model.add(tf.python.keras.layers.Dense(64, activation='relu'))
     return model
