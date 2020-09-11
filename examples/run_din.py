@@ -24,8 +24,7 @@ def get_xy_fd():
     hist_iid = np.array([[1, 2, 3, 0], [3, 2, 1, 0], [1, 2, 0, 0]])
     hist_cate_id = np.array([[1, 2, 2, 0], [2, 2, 1, 0], [1, 2, 0, 0]])
 
-    feature_dict = {'user': uid, 'gender': ugender, 'item_id': iid, 'cate_id': cate_id,
-                    'hist_item_id': hist_iid, 'hist_cate_id': hist_cate_id, 'pay_score': pay_score}
+    feature_dict = {'user': uid, 'gender': ugender, 'item_id': iid, 'cate_id': cate_id, 'hist_item_id': hist_iid, 'hist_cate_id': hist_cate_id, 'pay_score': pay_score}
     x = {name:feature_dict[name] for name in get_feature_names(feature_columns)}
     y = np.array([1, 0, 1])
     return x, y, feature_columns, behavior_feature_list
@@ -34,6 +33,5 @@ def get_xy_fd():
 if __name__ == "__main__":
     x, y, feature_columns, behavior_feature_list = get_xy_fd()
     model = DIN(feature_columns, behavior_feature_list)
-    model.compile('adam', 'binary_crossentropy',
-                  metrics=['binary_crossentropy'])
+    model.compile('adam', 'binary_crossentropy', metrics=['binary_crossentropy'])
     history = model.fit(x, y, verbose=1, epochs=10, validation_split=0.5)
