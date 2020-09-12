@@ -3,6 +3,7 @@ import numpy as np
 from deepctr.models import DIN
 from deepctr.feature_column import SparseFeat, VarLenSparseFeat, DenseFeat,get_feature_names
 from tensorflow import keras
+import pandas as pd
 import tensorflow as tf
 #文中说，用item
 
@@ -41,12 +42,39 @@ def example_din():
     4. 分别喂到模型中，看看会怎么样
     :return:
     """
-    x, y, feature_columns, behavior_feature_list = get_xy_fd() #说一下哪几列是当前的item需要和历史的行为进行attention的。所以之后就可以尝试，还是像之前一样读数据，然后只是把需要attention的列名单拿出来，放到list中就可以了
+    # x, y, feature_columns, behavior_feature_list = get_xy_fd() #说一下哪几列是当前的item需要和历史的行为进行attention的。所以之后就可以尝试，还是像之前一样读数据，然后只是把需要attention的列名单拿出来，放到list中就可以了
+    x, y, feature_columns, behavior_feature_list = get_xy_from_txt() #说一下哪几列是当前的item需要和历史的行为进行attention的。所以之后就可以尝试，还是像之前一样读数据，然后只是把需要attention的列名单拿出来，放到list中就可以了
+    dataset = tf.data.Dataset.from_tensor_slices((x.values, y.values))
+
     model = DIN(feature_columns, behavior_feature_list)
     model.compile('adam', keras.losses.binary_crossentropy, metrics=[keras.metrics.AUC(), keras.metrics.categorical_accuracy])
     # history = model.fit(x, y, verbose=1, epochs=10, validation_split=0.5)
-    history = model.fit(x, y, verbose=1, epochs=10, validation_data=(x,y))
+    # history = model.fit(dataset, verbose=1, epochs=10, validation_data=(x,y))
+    history = model.fit(dataset, verbose=1, epochs=10, validation_split=0.5)
     print("history: ", history)
+
+def get_xy_from_txt():
+    feature_columns = [SparseFeat('user', 3, embedding_dim=10),
+                       SparseFeat('gender', 2, embedding_dim=4),
+                       SparseFeat('item_id', 3 + 1, embedding_dim=8),
+                       SparseFeat('cate_id', 2 + 1, embedding_dim=4),
+                       DenseFeat('pay_score', 1)]
+    feature_columns += [
+                    VarLenSparseFeat(SparseFeat('hist_item_id', vocabulary_size=3 + 1, embedding_dim=8, embedding_name='item_id'), maxlen=4),
+                    VarLenSparseFeat(SparseFeat('hist_cate_id', 2 + 1, embedding_dim=4, embedding_name='cate_id'), maxlen=4)]
+
+    behavior_feature_list = ["item_id", "cate_id"]
+    # label, user, gender, item_id, cate_id, hist_item_id, hist_cate_id, pay_score
+    head = ['label', 'user', 'gender', 'item_id', 'cate_id', 'hist_item_id', 'hist_cate_id', 'pay_score']
+    data = pd.read_csv('data/movielens_sample_din.txt', delimiter=',')
+    y = data.pop('label')
+
+    x = data
+    x['hist_item_id'] = x['hist_item_id'].map(lambda x: x.split('|'))
+    x['hist_cate_id'] = x['hist_cate_id'].map(lambda x: x.split('|'))
+    return x, y, feature_columns,behavior_feature_list
+
+
 
 if __name__ == "__main__":
     example_din()

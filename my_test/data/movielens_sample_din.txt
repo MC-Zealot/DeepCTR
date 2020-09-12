@@ -1,0 +1,4 @@
+label,user,gender,item_id,cate_id,hist_item_id,hist_cate_id,pay_score
+1,0,0,1,1,1|2|3|0,1|2|2|0,0.1
+0,1,1,2,2,3|2|1|0,2|2|1|0,0.2
+1,2,0,3,2,1|2|0|0,1|2|0|0,0.3
