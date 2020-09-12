@@ -4,6 +4,8 @@ from deepctr.models import DIN
 from deepctr.feature_column import SparseFeat, VarLenSparseFeat, DenseFeat,get_feature_names
 from tensorflow import keras
 import tensorflow as tf
+#文中说，用item
+
 
 def get_xy_fd():
 
