@@ -27,7 +27,7 @@ def get_xy_fd():
 
     hist_iid = np.array([[1, 2, 3, 0], [3, 2, 1, 0], [1, 2, 0, 0]])
     hist_cate_id = np.array([[1, 2, 2, 0], [2, 2, 1, 0], [1, 2, 0, 0]])
-
+    print("hist_cate_id: ", type(hist_cate_id), type(hist_cate_id[0]),hist_cate_id)
     feature_dict = {'user': uid, 'gender': ugender, 'item_id': iid, 'cate_id': cate_id,
                     'hist_item_id': hist_iid, 'hist_cate_id': hist_cate_id, 'pay_score': pay_score}
     x = {name:feature_dict[name] for name in get_feature_names(feature_columns)}
@@ -72,8 +72,8 @@ def get_xy_from_txt(file_path="data/movielens_sample_din.txt"):
         a = x.split('|')
         for str in a:
             ret.append(int(str))
-        # return np.array(ret)
         return np.array(ret)
+        # return ret
     data['hist_item_id'] = data['hist_item_id'].apply(to_int_array)
     data['hist_cate_id'] = data['hist_cate_id'].apply(to_int_array)
 
@@ -83,10 +83,12 @@ def get_xy_from_txt(file_path="data/movielens_sample_din.txt"):
     iid = np.array(data['item_id'])  # 0 is mask value
     cate_id = np.array(data['cate_id'])  # 0 is mask value
     pay_score = np.array(data['pay_score'])
-    hist_iid = np.array(data['hist_item_id'])
-    hist_cate_id = np.array(data['hist_cate_id'])
+    print("hist_cate_id: ", type(data['hist_cate_id']),type(data['hist_cate_id'][0]),np.shape(data['hist_cate_id'][0]), data['hist_cate_id'])
+    print("------------"*10)
+    hist_iid = np.array(data['hist_item_id'].tolist())
+    hist_cate_id = np.array(data['hist_cate_id'].tolist())
     print("uid: ", type(uid), uid)
-    print("hist_cate_id: ", type(hist_cate_id), hist_cate_id)
+    print("hist_cate_id: ", type(hist_cate_id),type(hist_cate_id[0]),np.shape(hist_cate_id[0]), hist_cate_id)
     feature_dict = {'user': uid, 'gender': ugender, 'item_id': iid, 'cate_id': cate_id,
                     'hist_item_id': hist_iid, 'hist_cate_id': hist_cate_id, 'pay_score': pay_score}
     x = {name: feature_dict[name] for name in get_feature_names(feature_columns)}
