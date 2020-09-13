@@ -44,13 +44,13 @@ def example_din():
     """
     # x, y, feature_columns, behavior_feature_list = get_xy_fd() #说一下哪几列是当前的item需要和历史的行为进行attention的。所以之后就可以尝试，还是像之前一样读数据，然后只是把需要attention的列名单拿出来，放到list中就可以了
     x, y, feature_columns, behavior_feature_list = get_xy_from_txt() #说一下哪几列是当前的item需要和历史的行为进行attention的。所以之后就可以尝试，还是像之前一样读数据，然后只是把需要attention的列名单拿出来，放到list中就可以了
-    dataset = tf.data.Dataset.from_tensor_slices((x.values, y.values))
+    # dataset = tf.data.Dataset.from_tensor_slices((x.values, y.values))
 
     model = DIN(feature_columns, behavior_feature_list)
     model.compile('adam', keras.losses.binary_crossentropy, metrics=[keras.metrics.AUC(), keras.metrics.categorical_accuracy])
-    # history = model.fit(x, y, verbose=1, epochs=10, validation_split=0.5)
+    history = model.fit(x, y, verbose=1, epochs=10, validation_split=0.5)
     # history = model.fit(dataset, verbose=1, epochs=10, validation_data=(x,y))
-    history = model.fit(dataset, verbose=1, epochs=10, validation_split=0.5)
+    # history = model.fit(dataset, verbose=1, epochs=10, validation_split=0.5)
     print("history: ", history)
 
 def get_xy_from_txt(file_path="data/movielens_sample_din.txt"):
