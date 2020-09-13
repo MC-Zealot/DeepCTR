@@ -72,24 +72,25 @@ def get_xy_from_txt(file_path="data/movielens_sample_din.txt"):
         a = x.split('|')
         for str in a:
             ret.append(int(str))
-        return ret
+        # return np.array(ret)
+        return np.array(ret)
     data['hist_item_id'] = data['hist_item_id'].apply(to_int_array)
     data['hist_cate_id'] = data['hist_cate_id'].apply(to_int_array)
 
-    uid = data['user'].tolist()
+    uid = np.array(data['user'])
 
-    ugender = data['gender'].tolist()
-    iid = data['item_id'].tolist()  # 0 is mask value
-    cate_id = data['cate_id'].tolist()  # 0 is mask value
-    pay_score = data['pay_score'].tolist()
-    hist_iid = data['hist_item_id'].tolist()
-    hist_cate_id = data['hist_cate_id'].tolist()
+    ugender = np.array(data['gender'])
+    iid = np.array(data['item_id'])  # 0 is mask value
+    cate_id = np.array(data['cate_id'])  # 0 is mask value
+    pay_score = np.array(data['pay_score'])
+    hist_iid = np.array(data['hist_item_id'])
+    hist_cate_id = np.array(data['hist_cate_id'])
     print("uid: ", type(uid), uid)
     print("hist_cate_id: ", type(hist_cate_id), hist_cate_id)
     feature_dict = {'user': uid, 'gender': ugender, 'item_id': iid, 'cate_id': cate_id,
                     'hist_item_id': hist_iid, 'hist_cate_id': hist_cate_id, 'pay_score': pay_score}
     x = {name: feature_dict[name] for name in get_feature_names(feature_columns)}
-    y = data.pop('label')
+    y = np.array(data.pop('label'))
 
     return x, y, feature_columns,behavior_feature_list
 
