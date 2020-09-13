@@ -53,7 +53,7 @@ def example_din():
     history = model.fit(dataset, verbose=1, epochs=10, validation_split=0.5)
     print("history: ", history)
 
-def get_xy_from_txt():
+def get_xy_from_txt(file_path="data/movielens_sample_din.txt"):
     feature_columns = [SparseFeat('user', 3, embedding_dim=10),
                        SparseFeat('gender', 2, embedding_dim=4),
                        SparseFeat('item_id', 3 + 1, embedding_dim=8),
@@ -66,12 +66,14 @@ def get_xy_from_txt():
     behavior_feature_list = ["item_id", "cate_id"]
     # label, user, gender, item_id, cate_id, hist_item_id, hist_cate_id, pay_score
     head = ['label', 'user', 'gender', 'item_id', 'cate_id', 'hist_item_id', 'hist_cate_id', 'pay_score']
-    data = pd.read_csv('data/movielens_sample_din.txt', delimiter=',')
+
+    data = pd.read_csv(file_path, delimiter=',')
     y = data.pop('label')
 
     x = data
     x['hist_item_id'] = x['hist_item_id'].map(lambda x: x.split('|'))
     x['hist_cate_id'] = x['hist_cate_id'].map(lambda x: x.split('|'))
+    x['hist_item_id'].apply(lambda x: np.array(x))
     return x, y, feature_columns,behavior_feature_list
 
 
