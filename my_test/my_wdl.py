@@ -23,8 +23,8 @@ feature_description.update(
 )
 feature_description['label'] = tf.io.FixedLenFeature(dtype=tf.float32, shape=1)
 
-train_model_input = input_fn_tfrecord('./criteo_sample.tr.tfrecords', feature_description, 'label', batch_size=256, num_epochs=1, shuffle_factor=10)
-test_model_input = input_fn_tfrecord('./criteo_sample.te.tfrecords', feature_description, 'label', batch_size=2 ** 14, num_epochs=1, shuffle_factor=0)
+train_model_input = input_fn_tfrecord('./data/criteo_sample.tr.tfrecords', feature_description, 'label', batch_size=256, num_epochs=1, shuffle_factor=10)
+test_model_input = input_fn_tfrecord('./data/criteo_sample.te.tfrecords', feature_description, 'label', batch_size=2 ** 14, num_epochs=1, shuffle_factor=0)
 
 # model = WDLEstimator(linear_feature_columns, dnn_feature_columns, dnn_hidden_units=[4, 4], dnn_dropout=0.5)
 model = WDLEstimator(linear_feature_columns, dnn_feature_columns)

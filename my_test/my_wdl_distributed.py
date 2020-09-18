@@ -31,7 +31,7 @@ estimator = WDLEstimator(linear_feature_columns, dnn_feature_columns)
 
 train_input_fn = functools.partial(
     input_fn_tfrecord,
-    './criteo_sample.tr.tfrecords',
+    './data/criteo_sample.tr.tfrecords',
     256,
     1)
 
@@ -41,7 +41,7 @@ train_spec = tf.estimator.TrainSpec(
 
 eval_input_fn = functools.partial(
     input_fn_tfrecord,
-    './criteo_sample.te.tfrecords',
+    './data/criteo_sample.te.tfrecords',
     256,
     1)
 
