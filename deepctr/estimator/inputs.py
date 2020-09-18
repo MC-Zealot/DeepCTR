@@ -45,3 +45,29 @@ def input_fn_tfrecord(filenames, feature_description, label=None, batch_size=256
         return iterator.get_next()
 
     return input_fn
+
+
+
+
+def input_fn1(filenames, feature_description, label=None, batch_size=256, num_epochs=1, num_parallel_calls=8,
+                      shuffle_factor=10, prefetch_factor=1,):
+    def _parse_examples1(serial_exmp):
+        features = tf.parse_single_example(serial_exmp, features=feature_description)
+        if label is not None:
+            labels = features.pop(label)
+            return features, labels
+        return features
+    dataset = tf.data.TFRecordDataset(filenames)
+    dataset = dataset.map(_parse_examples1, num_parallel_calls=num_parallel_calls)
+    if shuffle_factor > 0:
+        dataset = dataset.shuffle(buffer_size=batch_size * shuffle_factor)
+
+    dataset = dataset.repeat(num_epochs).batch(batch_size)
+
+    if prefetch_factor > 0:
+        dataset = dataset.prefetch(buffer_size=batch_size * prefetch_factor)
+
+    iterator = dataset.make_one_shot_iterator()
+
+    return iterator.get_next()
+
