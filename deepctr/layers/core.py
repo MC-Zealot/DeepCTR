@@ -8,7 +8,7 @@ Author:
 
 import tensorflow as tf
 from tensorflow.python.keras import backend as K
-from tensorflow.python.keras.initializers import Zeros, glorot_normal
+from tensorflow.python.keras.initializers import Zeros, glorot_normal, Constant
 from tensorflow.python.keras.layers import Layer
 from tensorflow.python.keras.regularizers import l2
 
@@ -254,4 +254,107 @@ class PredictionLayer(Layer):
     def get_config(self, ):
         config = {'task': self.task, 'use_bias': self.use_bias}
         base_config = super(PredictionLayer, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
+class MMOELayer(Layer):
+    """
+    The Multi-gate Mixture-of-Experts layer in MMOE model
+      Input shape
+        - 2D tensor with shape: ``(batch_size,units)``.
+
+      Output shape
+        - A list with **num_tasks** elements, which is a 2D tensor with shape: ``(batch_size, output_dim)`` .
+
+      Arguments
+        - **num_tasks**: integer, the number of tasks, equal to the number of outputs.
+        - **num_experts**: integer, the number of experts.
+        - **output_dim**: integer, the dimension of each output of MMOELayer.
+
+    References
+      - [Jiaqi Ma, Zhe Zhao, Xinyang Yi, et al. Modeling Task Relationships in Multi-task Learning with Multi-gate Mixture-of-Experts[C]](https://dl.acm.org/doi/10.1145/3219819.3220007)
+    """
+    def __init__(self, num_tasks, num_experts, output_dim, seed=1024, **kwargs):
+        self.num_experts = num_experts
+        self.num_tasks = num_tasks
+        self.output_dim = output_dim
+        self.seed = seed
+        super(MMOELayer, self).__init__(**kwargs)
+
+    def build(self, input_shape):
+        input_dim = int(input_shape[-1])
+        self.expert_kernel = self.add_weight(
+                                    name='expert_kernel',
+                                    shape=(input_dim, self.num_experts * self.output_dim),
+                                    dtype=tf.float32,
+                                    initializer=glorot_normal(seed=self.seed))
+        self.gate_kernels = []
+        for i in range(self.num_tasks):
+            self.gate_kernels.append(self.add_weight(
+                                        name='gate_weight_'.format(i),
+                                        shape=(input_dim, self.num_experts),
+                                        dtype=tf.float32,
+                                        initializer=glorot_normal(seed=self.seed)))
+        super(MMOELayer, self).build(input_shape)
+
+    def call(self, inputs, **kwargs):
+        outputs = []
+        expert_out = tf.tensordot(inputs, self.expert_kernel, axes=(-1,0))
+        expert_out = tf.reshape(expert_out, [-1, self.output_dim, self.num_experts])
+        for i in range(self.num_tasks):
+            gate_out = tf.tensordot(inputs, self.gate_kernels[i], axes=(-1,0))
+            gate_out = tf.nn.softmax(gate_out)
+            gate_out = tf.tile(tf.expand_dims(gate_out, axis=1), [1, self.output_dim, 1])
+            output = tf.reduce_sum(tf.multiply(expert_out, gate_out), axis=2)
+            outputs.append(output)
+        return outputs
+
+    def get_config(self):
+
+        config = {'num_tasks': self.num_tasks,
+                  'num_experts': self.num_experts,
+                  'output_dim': self.output_dim}
+        base_config = super(MMOELayer, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
+    def compute_output_shape(self, input_shape):
+        return [input_shape[0], self.output_dim] * self.num_tasks
+
+class MultiLossLayer(Layer):
+    def __init__(self, num_tasks, tasks, **kwargs):
+        self.num_tasks = num_tasks
+        self.tasks = tasks
+        super(MultiLossLayer, self).__init__(**kwargs)
+
+    def build(self, input_shape):
+        # initialise log_vars
+        self.log_vars = []
+        for i in range(self.num_tasks):
+            self.log_vars += [self.add_weight(name='log_var' + str(i), shape=(1,),
+                                              initializer=Constant(0.), trainable=True)]
+        super(MultiLossLayer, self).build(input_shape)
+
+    def multi_loss(self, ys_true, ys_pred, tasks):
+        assert len(ys_true) == self.num_tasks and len(ys_pred) == self.num_tasks
+        total_loss = 0
+        for y_true, y_pred, task, log_var in zip(ys_true, ys_pred, tasks, self.log_vars):
+            precision = K.exp(-log_var)
+            if task == 'binary':
+                loss = tf.keras.losses.BinaryCrossentropy()(y_true, y_pred)
+            else:
+                loss = tf.keras.losses.MeanSquaredError()(y_true, y_pred)
+            total_loss += K.sum(precision * loss + log_var, -1)
+        return K.mean(total_loss)
+
+    def call(self, inputs):
+        ys_true = inputs[:self.num_tasks]
+        ys_pred = inputs[self.num_tasks:]
+        loss = self.multi_loss(ys_true, ys_pred, self.tasks)
+        self.add_loss(loss, inputs=inputs)
+        # We won't actually use the output.
+        return K.concatenate(inputs, -1)
+
+    def get_config(self):
+        config = {'tasks': self.tasks,
+                  'num_tasks': self.num_tasks}
+        base_config = super(MultiLossLayer, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
