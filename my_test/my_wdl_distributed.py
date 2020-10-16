@@ -29,19 +29,11 @@ test_model_input = input_fn_tfrecord('./data/criteo_sample.te.tfrecords', featur
 
 estimator = WDLEstimator(linear_feature_columns, dnn_feature_columns)
 
-train_input_fn = functools.partial(
-    input_fn1,
-    './data/criteo_sample.tr.tfrecords', feature_description, 'label', batch_size=256, num_epochs=1, shuffle_factor=10)
+train_input_fn = functools.partial(input_fn1, './data/criteo_sample.tr.tfrecords', feature_description, 'label', batch_size=256, num_epochs=1, shuffle_factor=10)
 
-train_spec = tf.estimator.TrainSpec(
-    input_fn=train_input_fn, max_steps=10,
-    hooks=[])
+train_spec = tf.estimator.TrainSpec(input_fn=train_input_fn, max_steps=10,hooks=[])
 
-eval_input_fn = functools.partial(
-    input_fn1,
-    './data/criteo_sample.te.tfrecords', feature_description, 'label', batch_size=2 ** 14, num_epochs=1, shuffle_factor=0)
+eval_input_fn = functools.partial(input_fn1, './data/criteo_sample.te.tfrecords', feature_description, 'label', batch_size=2 ** 14, num_epochs=1, shuffle_factor=0)
 
-eval_spec = tf.estimator.EvalSpec(input_fn=eval_input_fn, steps=10,
-                                  start_delay_secs=10,
-                                  throttle_secs=60, hooks=[])
+eval_spec = tf.estimator.EvalSpec(input_fn=eval_input_fn, steps=10, start_delay_secs=10, throttle_secs=60, hooks=[])
 tf.estimator.train_and_evaluate(estimator, train_spec, eval_spec)
