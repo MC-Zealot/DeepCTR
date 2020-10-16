@@ -53,8 +53,10 @@ def WDLEstimator(linear_feature_columns, dnn_feature_columns, dnn_hidden_units=(
         with variable_scope(DNN_SCOPE_NAME):
             sparse_embedding_list, dense_value_list = input_from_feature_columns(features, dnn_feature_columns, l2_reg_embedding=l2_reg_embedding)
             dnn_input = combined_dnn_input(sparse_embedding_list, dense_value_list)
-            dnn_out = DNN(dnn_hidden_units, dnn_activation, l2_reg_dnn, dnn_dropout, False, seed)(dnn_input, training=train_flag)
-            dnn_logits = Dense(1, use_bias=False, activation=None)(dnn_out)
+
+            dnn_out = DNN(dnn_hidden_units, dnn_activation, l2_reg_dnn, dnn_dropout, False, seed=seed)(dnn_input, training=train_flag)
+            dnn_logits = Dense(
+                1, use_bias=False, kernel_initializer=tf.keras.initializers.glorot_normal(seed))(dnn_out)
 
         logits = linear_logits + dnn_logits
 
